@@ -1,0 +1,56 @@
+public class RetryerUtil {
+
+    public static <T> T call(Callable<T> callable) throws ExecutionException, RetryException {
+        Retryer<T> retryer = RetryerBuilder.<T>newBuilder()
+                .retryIfResult(Predicates.isNull())
+                .retryIfException()
+                .retryIfRuntimeException()
+                .withWaitStrategy(WaitStrategies.incrementingWait(10, TimeUnit.SECONDS, 30, TimeUnit.SECONDS))
+                .withStopStrategy(StopStrategies.stopAfterAttempt(5))
+                .build();
+        return retryer.call(callable);
+    }
+
+    public static <T> T call(Callable<T> callable, int attemptNumber) throws ExecutionException, RetryException {
+        Retryer<T> retryer = RetryerBuilder.<T>newBuilder()
+                .retryIfResult(Predicates.isNull())
+                .retryIfException()
+                .retryIfRuntimeException()
+                .withWaitStrategy(WaitStrategies.incrementingWait(10, TimeUnit.SECONDS, 30, TimeUnit.SECONDS))
+                .withStopStrategy(StopStrategies.stopAfterAttempt(attemptNumber))
+                .build();
+        return retryer.call(callable);
+    }
+
+
+    public static <T> T call(Callable<T> callable, RetryListener listener, int attemptNumber) throws ExecutionException, RetryException {
+        Retryer<T> retryer = RetryerBuilder.<T>newBuilder()
+                .retryIfResult(Predicates.isNull())
+                .retryIfException()
+                .retryIfRuntimeException()
+                .withWaitStrategy(WaitStrategies.incrementingWait(10, TimeUnit.SECONDS, 30, TimeUnit.SECONDS))
+                .withStopStrategy(StopStrategies.stopAfterAttempt(attemptNumber))
+                .withRetryListener(listener)
+                .build();
+        return retryer.call(callable);
+    }
+}
+
+==========================
+HttpResponse resultHttpResponse = RetryerUtil.call(() -> {
+    Map<String, List<String>> headers = new HashMap<>();
+    headers.put("token", Lists.newArrayList(ticket));
+    headers.put("sign", Lists.newArrayList(generateAiDealSign(ticket, req.getPhotoId())));
+    headers.put("Content-Type", Lists.newArrayList("application/json"));
+    SerializeConfig config = new SerializeConfig();
+    config.propertyNamingStrategy = PropertyNamingStrategy.SnakeCase;
+    HttpResponse httpResponse = HttpRequest.post(photoDealUrl)
+            .body(JSON.toJSONString(req, config))
+            .header(headers)
+            .timeout(50000)
+            .execute();
+    if (!Integer.valueOf(200).equals(httpResponse.getStatus())) {
+        throw new RuntimeException(httpResponse.body());
+    }
+    return httpResponse;
+}, 10);
